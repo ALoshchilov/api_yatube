@@ -6,12 +6,6 @@ from posts.models import Comment, Group, Post, User
 class CommentSerializer(serializers.ModelSerializer):
     author = serializers.ReadOnlyField(source='author.username')
 
-    # id = 0
-    # def is_named_bar(self, foo):
-    #     self.custom_id = self.custom_id + 1
-    #     return self.custom_id
-    # order_number = serializers.SerializerMethodField('is_named_bar')
-
     class Meta:
         model = Comment
         fields = ('id', 'text', 'created', 'author', 'post',)
