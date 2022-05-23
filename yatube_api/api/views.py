@@ -1,10 +1,10 @@
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework import viewsets
 
-from posts.models import Comment, Group, Post
 from api.serializers import (
     CommentSerializer, GroupSerializer, PostSerializer
 )
+from posts.models import Comment, Group, Post
 
 DELETE_DENIED_MESSAGE = 'Удаление чужого контента запрещено!'
 EDIT_DENIED_MESSAGE = 'Изменение чужого контента запрещено!'
