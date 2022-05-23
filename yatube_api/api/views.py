@@ -1,11 +1,16 @@
-from rest_framework.exceptions import PermissionDenied
-from rest_framework.response import Response
-from rest_framework import status, viewsets
+from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework import viewsets
 
-from posts.models import Comment, Group, Post, User
+from posts.models import Comment, Group, Post
 from api.serializers import (
-    CommentSerializer, GroupSerializer, PostSerializer, UserSerializer
+    CommentSerializer, GroupSerializer, PostSerializer
 )
+
+DELETE_DENIED_MESSAGE = 'Удаление чужого контента запрещено!'
+EDIT_DENIED_MESSAGE = 'Изменение чужого контента запрещено!'
+COMMENTS_NOT_FOUND_MESSAGE = 'Комментарии для поста ID {id} не найдены'
+POST_NOT_FOUND_MESSAGE = 'Пост с ID {id} не найден'
+POST_ID_KEY = 'post_id'
 
 
 class CommentViewSet(viewsets.ModelViewSet):
@@ -13,25 +18,33 @@ class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
 
     def get_queryset(self):
-        return super().get_queryset().filter(post=self.kwargs.get('post_id'))
+        id = self.kwargs.get(POST_ID_KEY)
+        try:
+            post = Post.objects.get(id=id)
+        except Post.DoesNotExist:
+            raise NotFound(COMMENTS_NOT_FOUND_MESSAGE.format(id=id))
+        return self.queryset.filter(post=post)
 
     def perform_create(self, serializer, **kwargs):
+        id = self.kwargs.get(POST_ID_KEY)
+        try:
+            post = Post.objects.get(id=id)
+        except Post.DoesNotExist:
+            raise NotFound(POST_NOT_FOUND_MESSAGE.format(id=id))
         serializer.save(
             author=self.request.user,
-            post=Post.objects.get(id=self.kwargs.get('post_id'))
+            post=post
         )
 
     def perform_update(self, serializer):
         if self.get_object().author != self.request.user:
-            raise PermissionDenied('Изменение чужого контента запрещено!')
+            raise PermissionDenied(EDIT_DENIED_MESSAGE)
         super(CommentViewSet, self).perform_update(serializer)
 
-    def destroy(self, request, **kwargs):
-        comment = self.get_object()
-        if comment.author != request.user:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        super(CommentViewSet, self).perform_destroy(comment)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    def perform_destroy(self, comment):
+        if comment.author != self.request.user:
+            raise PermissionDenied(DELETE_DENIED_MESSAGE)
+        comment.delete()
 
 
 class GroupViewSet(viewsets.ReadOnlyModelViewSet):
@@ -48,17 +61,10 @@ class PostViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         if self.get_object().author != self.request.user:
-            raise PermissionDenied('Изменение чужого контента запрещено!')
+            raise PermissionDenied(EDIT_DENIED_MESSAGE)
         super(PostViewSet, self).perform_update(serializer)
 
-    def destroy(self, request, **kwargs):
-        post = self.get_object()
-        if post.author != request.user:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        super(PostViewSet, self).perform_destroy(post)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
+    def perform_destroy(self, post):
+        if post.author != self.request.user:
+            raise PermissionDenied(DELETE_DENIED_MESSAGE)
+        post.delete()
